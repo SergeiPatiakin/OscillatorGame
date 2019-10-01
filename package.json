@@ -1,0 +1,23 @@
+{
+  "name": "nlogame",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "clean": "rm -r dist",
+    "distclean": "rm -r dist node_modules",
+    "build": "webpack",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {},
+  "devDependencies": {
+    "css-loader": "3.2.0",
+    "source-map-loader": "0.2.4",
+    "style-loader": "1.0.0",
+    "ts-loader": "6.2.0",
+    "typescript": "3.6.3",
+    "webpack": "4.41.0",
+    "webpack-cli": "3.3.9"
+  }
+}
