@@ -13,22 +13,27 @@ interface GameState {
   mouseDown: boolean
 }
 
-export const getInitState = (canvasId: string): GameState => ({
-  canvasId,
-  canvasWidth: 600,
-  canvasHeight: 400,
-  centerX: 300,
-  centerY: 200,
-  particles: [{
-    x: 300 + 100,
-    y: 200,
-    r: RADIUS,
-    color: '#ff0000',
-  }],
-  timestamp: 0,
-  gameTime: 0,
-  mouseDown: false,
-})
+export const getInitState = (canvasId: string): GameState => {
+  const canvas = document.getElementById(canvasId) as HTMLCanvasElement
+  canvas.width = canvas.scrollWidth
+  canvas.height = canvas.scrollHeight
+  return {
+    canvasId,
+    canvasWidth: canvas.scrollWidth,
+    canvasHeight: canvas.scrollHeight,
+    centerX: canvas.scrollWidth / 2,
+    centerY: canvas.scrollHeight / 2,
+    particles: [{
+      x: canvas.scrollWidth / 2 + 100,
+      y: canvas.scrollHeight / 2,
+      r: RADIUS,
+      color: '#ff0000',
+    }],
+    timestamp: 0,
+    gameTime: 0,
+    mouseDown: false,
+  }
+}
 
 export function updateState(state: GameState, timestamp: number): void {
   const gameTimeDelta = Math.min(MAX_TIME_DELTA, timestamp - state.timestamp)
@@ -83,10 +88,22 @@ const onMouseUp = (state: GameState) => {
   state.mouseDown = false
 }
 
+const onResize = (state: GameState) => {
+  console.log('onResize')
+  const canvas = document.getElementById(state.canvasId) as HTMLCanvasElement
+  canvas.width = canvas.scrollWidth
+  canvas.height = canvas.scrollHeight
+  state.canvasWidth = canvas.scrollWidth
+  state.canvasHeight = canvas.scrollHeight
+  state.centerX = canvas.scrollWidth / 2
+  state.centerY = canvas.scrollHeight / 2
+}
+
 const setupListeners = (state: GameState) => {
   const canvas = document.getElementById(state.canvasId) as HTMLCanvasElement
   canvas.addEventListener('mousedown', () => onMouseDown(state))
   canvas.addEventListener('mouseup', () => onMouseUp(state))
+  window.addEventListener('resize', () => onResize(state))
 }
 
 export const setupGame = (canvasId: string) => {
