@@ -7,17 +7,28 @@ const OSCILLATOR_T = 1
 const OSCILLATOR_G1 = 0.3
 const OSCILLATOR_G2 = - 0.2
 
+interface MenuState {
+  tag: 'menu'
+  score?: number
+}
+
+interface PlayingState {
+  tag: 'playing',
+  ballState: {
+    x: number
+    v: number
+  }
+}
+
+type GameplayState = MenuState | PlayingState
+
 interface GameState {
   canvasId: string
   canvasWidth: number
   canvasHeight: number
   centerX: number
   centerY: number
-  ballState: {
-    x: number
-    v: number
-  }
-  //particles: Array<{x: number, y: number, r: number, color: string}>
+  gameplayState: GameplayState
   timestamp: number
   gameTime: number
   mouseDown: boolean
@@ -33,24 +44,41 @@ export const getInitState = (canvasId: string): GameState => {
     canvasHeight: canvas.scrollHeight,
     centerX: canvas.scrollWidth / 2,
     centerY: canvas.scrollHeight / 2,
-    ballState: {
-      x: 0.1,
-      v: 0,
+    gameplayState: {
+      tag: 'menu'
     },
+    // ballState: {
+    //   x: 0.1,
+    //   v: 0,
+    // },
     timestamp: 0,
     gameTime: 0,
     mouseDown: false,
   }
 }
 
+const getInitPlayingState = (): PlayingState => ({
+  tag: 'playing',
+  ballState: {
+    x: 0.1,
+    v: 0,
+  }
+})
+
 export function updateState(state: GameState, timestamp: number): void {
   const gameTimeDelta = Math.min(MAX_TIME_DELTA, timestamp - state.timestamp)
   state.timestamp = timestamp
   state.gameTime += gameTimeDelta
-  state.ballState = {
-    x: state.ballState.x + OSCILLATOR_S * state.ballState.v * gameTimeDelta,
-    v: state.ballState.v - OSCILLATOR_T * state.ballState.x * gameTimeDelta - (state.mouseDown ? OSCILLATOR_G2 : OSCILLATOR_G1) * state.ballState.v * gameTimeDelta,
+  if (state.gameplayState.tag === 'menu' && state.mouseDown) {
+    state.gameplayState = getInitPlayingState()
   }
+  if (state.gameplayState.tag === 'playing') {
+    state.gameplayState.ballState = {
+      x: state.gameplayState.ballState.x + OSCILLATOR_S * state.gameplayState.ballState.v * gameTimeDelta,
+      v: state.gameplayState.ballState.v - OSCILLATOR_T * state.gameplayState.ballState.x * gameTimeDelta - (state.mouseDown ? OSCILLATOR_G2 : OSCILLATOR_G1) * state.gameplayState.ballState.v * gameTimeDelta,
+    }
+  }
+  
   // state.particles = [{
   //   x: state.centerX + 100 * Math.cos(state.gameTime),
   //   y: state.centerY + 100 * Math.sin(state.gameTime),
@@ -59,14 +87,27 @@ export function updateState(state: GameState, timestamp: number): void {
   // }]
 }
 
-const getBallCoordinates = (state: GameState) => {
+const getBallCoordinates = (state: GameState & {gameplayState: PlayingState}) => {
   return {
-    x: state.centerX + state.canvasWidth / 2 * state.ballState.x,
+    x: state.centerX + state.canvasWidth / 2 * state.gameplayState.ballState.x,
     y: state.canvasHeight * 0.75,
   }
 }
 
-export function drawState(state: GameState) {
+export function drawMenuState(state: GameState & {gameplayState: MenuState}) {
+  const {canvasId, canvasWidth, canvasHeight, centerX, centerY} = state
+  const canvas = document.getElementById(canvasId) as HTMLCanvasElement
+  const ctx = canvas.getContext('2d')!
+  ctx.rect(0, 0, canvasWidth, canvasHeight)
+  ctx.fillStyle = '#9999ff'
+  ctx.fill()
+  ctx.textAlign = "center"
+  ctx.font = "30px Arial"
+  ctx.fillStyle = "#ffffff"
+  ctx.fillText("OSCILLATOR", canvasWidth/2, canvasHeight/2)
+}
+
+export function drawPlayingState(state: GameState & {gameplayState: PlayingState}) {
   const {canvasId, canvasWidth, canvasHeight, centerX, centerY} = state
   const canvas = document.getElementById(canvasId) as HTMLCanvasElement
   const ctx = canvas.getContext('2d')!
@@ -96,14 +137,14 @@ export function drawState(state: GameState) {
   ctx.fillStyle = '#ff0000'
   ctx.ellipse(bc.x, bc.y, BALL_RADIUS, BALL_RADIUS, 0, 0, 2*Math.PI)
   ctx.fill()
+}
 
-
-  // particles.forEach(p => {
-  //     ctx.beginPath()
-  //     ctx.fillStyle = p.color
-  //     ctx.ellipse(p.x, p.y, p.r, p.r, 0, 0, 2*Math.PI)
-  //     ctx.fill()
-  // });
+const drawState = (state: GameState) => {
+  if (state.gameplayState.tag === 'playing'){
+    drawPlayingState(state as GameState & {gameplayState: PlayingState})
+  } else if (state.gameplayState.tag === 'menu') {
+    drawMenuState(state as GameState & {gameplayState: MenuState})
+  }
 }
 
 const onMouseDown = (state: GameState) => {
