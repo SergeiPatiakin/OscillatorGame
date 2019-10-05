@@ -1,5 +1,11 @@
 const MAX_TIME_DELTA = 0.1 // seconds
-const RADIUS = 5
+const BALL_RADIUS = 5
+const BALL_Y = 200
+
+const OSCILLATOR_S = 1
+const OSCILLATOR_T = 1
+const OSCILLATOR_G1 = 0.3
+const OSCILLATOR_G2 = - 0.2
 
 interface GameState {
   canvasId: string
@@ -7,7 +13,11 @@ interface GameState {
   canvasHeight: number
   centerX: number
   centerY: number
-  particles: Array<{x: number, y: number, r: number, color: string}>
+  ballState: {
+    x: number
+    v: number
+  }
+  //particles: Array<{x: number, y: number, r: number, color: string}>
   timestamp: number
   gameTime: number
   mouseDown: boolean
@@ -23,12 +33,10 @@ export const getInitState = (canvasId: string): GameState => {
     canvasHeight: canvas.scrollHeight,
     centerX: canvas.scrollWidth / 2,
     centerY: canvas.scrollHeight / 2,
-    particles: [{
-      x: canvas.scrollWidth / 2 + 100,
-      y: canvas.scrollHeight / 2,
-      r: RADIUS,
-      color: '#ff0000',
-    }],
+    ballState: {
+      x: 0.1,
+      v: 0,
+    },
     timestamp: 0,
     gameTime: 0,
     mouseDown: false,
@@ -39,16 +47,27 @@ export function updateState(state: GameState, timestamp: number): void {
   const gameTimeDelta = Math.min(MAX_TIME_DELTA, timestamp - state.timestamp)
   state.timestamp = timestamp
   state.gameTime += gameTimeDelta
-  state.particles = [{
-    x: state.centerX + 100 * Math.cos(state.gameTime),
-    y: state.centerY + 100 * Math.sin(state.gameTime),
-    r: RADIUS,
-    color: '#ff0000',
-  }]
+  state.ballState = {
+    x: state.ballState.x + OSCILLATOR_S * state.ballState.v * gameTimeDelta,
+    v: state.ballState.v - OSCILLATOR_T * state.ballState.x * gameTimeDelta - (state.mouseDown ? OSCILLATOR_G2 : OSCILLATOR_G1) * state.ballState.v * gameTimeDelta,
+  }
+  // state.particles = [{
+  //   x: state.centerX + 100 * Math.cos(state.gameTime),
+  //   y: state.centerY + 100 * Math.sin(state.gameTime),
+  //   r: RADIUS,
+  //   color: '#ff0000',
+  // }]
+}
+
+const getBallCoordinates = (state: GameState) => {
+  return {
+    x: state.centerX + state.canvasWidth / 2 * state.ballState.x,
+    y: state.canvasHeight * 0.75,
+  }
 }
 
 export function drawState(state: GameState) {
-  const {canvasId, canvasWidth, canvasHeight, centerX, centerY, particles} = state
+  const {canvasId, canvasWidth, canvasHeight, centerX, centerY} = state
   const canvas = document.getElementById(canvasId) as HTMLCanvasElement
   const ctx = canvas.getContext('2d')!
   ctx.clearRect(0, 0, canvasWidth, canvasHeight)
@@ -69,15 +88,22 @@ export function drawState(state: GameState) {
   ctx.beginPath()
   ctx.ellipse(centerX, centerY, 30, 30, 0, 0, 2*Math.PI)
   ctx.lineWidth = 1
-  ctx.strokeStyle = state.mouseDown ? '#eeeeee' : '#00ff00'
+  ctx.strokeStyle = state.mouseDown ? '#0000ff' : '#00ff00'
   ctx.stroke()
 
-  particles.forEach(p => {
-      ctx.beginPath()
-      ctx.fillStyle = p.color
-      ctx.ellipse(p.x, p.y, p.r, p.r, 0, 0, 2*Math.PI)
-      ctx.fill()
-  });
+  const bc = getBallCoordinates(state)
+  ctx.beginPath()
+  ctx.fillStyle = '#ff0000'
+  ctx.ellipse(bc.x, bc.y, BALL_RADIUS, BALL_RADIUS, 0, 0, 2*Math.PI)
+  ctx.fill()
+
+
+  // particles.forEach(p => {
+  //     ctx.beginPath()
+  //     ctx.fillStyle = p.color
+  //     ctx.ellipse(p.x, p.y, p.r, p.r, 0, 0, 2*Math.PI)
+  //     ctx.fill()
+  // });
 }
 
 const onMouseDown = (state: GameState) => {
