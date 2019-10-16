@@ -4,6 +4,13 @@ interface Rect {
   height: number
 }
 
+interface PosRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 interface MenuState {
   tag: 'menu'
   score?: number
@@ -11,6 +18,7 @@ interface MenuState {
 
 interface PlayingState {
   tag: 'playing',
+  yOffset: number
   ballState: {
     x: number
     v: number
@@ -37,6 +45,8 @@ const OSCILLATOR_T = 1
 const OSCILLATOR_G1 = 0.3
 const OSCILLATOR_G2 = - 0.2
 
+const SCROLL_V = 10
+
 const GAME_RECT: Rect = {
   width: 160,
   height: 90,
@@ -52,6 +62,19 @@ const GAME_SAFE_RECT: Rect = {
   height: 81,
 }
 
+const LEFT_WALL_POSRECT: PosRect = {
+  x: 0,
+  y: 0,
+  width: 20,
+  height: 90,
+}
+
+const RIGHT_WALL_POSRECT: PosRect = {
+  x: 140,
+  y: 0,
+  width: 20,
+  height: 90,
+}
 
 export const getInitState = (canvasId: string): GameState => {
   const canvas = document.getElementById(canvasId) as HTMLCanvasElement
@@ -72,8 +95,9 @@ export const getInitState = (canvasId: string): GameState => {
 
 const getInitPlayingState = (): PlayingState => ({
   tag: 'playing',
+  yOffset: 0,
   ballState: {
-    x: 0.1,
+    x: 30,
     v: 0,
   }
 })
@@ -82,13 +106,18 @@ export function updateState(state: GameState, timestamp: number): void {
   const gameTimeDelta = Math.min(MAX_TIME_DELTA, timestamp - state.timestamp)
   state.timestamp = timestamp
   state.gameTime += gameTimeDelta
-  if (state.gameplayState.tag === 'menu' && state.mouseDown) {
-    state.gameplayState = getInitPlayingState()
-  }
   if (state.gameplayState.tag === 'playing') {
+    state.gameplayState.yOffset = SCROLL_V * state.gameTime
     state.gameplayState.ballState = {
       x: state.gameplayState.ballState.x + OSCILLATOR_S * state.gameplayState.ballState.v * gameTimeDelta,
-      v: state.gameplayState.ballState.v - OSCILLATOR_T * state.gameplayState.ballState.x * gameTimeDelta - (state.mouseDown ? OSCILLATOR_G2 : OSCILLATOR_G1) * state.gameplayState.ballState.v * gameTimeDelta,
+      v: state.gameplayState.ballState.v - OSCILLATOR_T * (state.gameplayState.ballState.x - GAME_CENTER.width) * gameTimeDelta - (state.mouseDown ? OSCILLATOR_G2 : OSCILLATOR_G1) * state.gameplayState.ballState.v * gameTimeDelta,
+    }
+    // Detect game over
+    if ((state.gameplayState.ballState.x - BALL_RADIUS < LEFT_WALL_POSRECT.x + LEFT_WALL_POSRECT.width) ||
+      (state.gameplayState.ballState.x + BALL_RADIUS > RIGHT_WALL_POSRECT.x)) {
+      state.gameplayState = {
+        tag: 'menu'
+      }
     }
   }
 }
@@ -104,7 +133,7 @@ const getScaleFactor = (pixelRect: Rect, gameCoordinateRect: Rect, gameSafeCoord
 
 const getBallCoordinates = (state: GameState & {gameplayState: PlayingState}) => {
   return {
-    x: GAME_CENTER.width * (1 + state.gameplayState.ballState.x),
+    x: state.gameplayState.ballState.x,
     y: 75,
   }
 }
@@ -174,33 +203,36 @@ export function drawPlayingState(state: GameState & {gameplayState: PlayingState
   // Game background
   ctx.beginPath()
   ctx.rect(0, 0, GAME_RECT.width, GAME_RECT.height)
-  ctx.fillStyle='#ffffff'
+  ctx.fillStyle='#5555ff'
   ctx.fill()
   ctx.clip()
 
+  // horizontal lines
+  for (let y = state.gameplayState.yOffset % 20 - 20; y < GAME_RECT.height + 20; y += 20) {
+    ctx.beginPath()
+    ctx.moveTo(0, y)
+    ctx.lineWidth = 0.4
+    // ctx.setLineDash([2, 6]);
+    ctx.strokeStyle = '#3333ff'
+    ctx.lineTo(GAME_RECT.width, y)
+    ctx.stroke()
+  }
 
-  // draw stage
+  // Walls
   ctx.beginPath()
-  ctx.ellipse(GAME_CENTER.width, GAME_CENTER.height, 100, 100, 0, 0, 2*Math.PI)
-  ctx.lineWidth = 1
-  ctx.strokeStyle = '#eeeeee'
-  ctx.stroke()
-
+  ctx.rect(LEFT_WALL_POSRECT.x, LEFT_WALL_POSRECT.y, LEFT_WALL_POSRECT.width, LEFT_WALL_POSRECT.height)
+  ctx.fillStyle='#ffffff'
+  ctx.fill()
+  
   ctx.beginPath()
-  ctx.ellipse(GAME_CENTER.width, GAME_CENTER.height, 60, 60, 0, 0, 2*Math.PI)
-  ctx.lineWidth = 1
-  ctx.strokeStyle = '#eeeeee'
-  ctx.stroke()
+  ctx.rect(RIGHT_WALL_POSRECT.x, RIGHT_WALL_POSRECT.y, RIGHT_WALL_POSRECT.width, RIGHT_WALL_POSRECT.height)
+  ctx.fillStyle='#ffffff'
+  ctx.fill()
 
-  ctx.beginPath()
-  ctx.ellipse(GAME_CENTER.width, GAME_CENTER.height, 30, 30, 0, 0, 2*Math.PI)
-  ctx.lineWidth = 1
-  ctx.strokeStyle = state.mouseDown ? '#0000ff' : '#00ff00'
-  ctx.stroke()
-
+  // Ball
   const bc = getBallCoordinates(state)
   ctx.beginPath()
-  ctx.fillStyle = '#ff0000'
+  ctx.fillStyle = '#ff9999'
   ctx.ellipse(bc.x, bc.y, BALL_RADIUS, BALL_RADIUS, 0, 0, 2*Math.PI)
   ctx.fill()
 }
@@ -214,6 +246,10 @@ const drawState = (state: GameState) => {
 }
 
 const onMouseDown = (state: GameState) => {
+  if (state.gameplayState.tag === 'menu') {
+    state.gameTime = 0
+    state.gameplayState = getInitPlayingState()
+  }
   state.mouseDown = true
 }
 
