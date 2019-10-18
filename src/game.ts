@@ -17,12 +17,18 @@ interface MenuState {
 }
 
 interface PlayingState {
-  tag: 'playing',
+  tag: 'playing'
   yOffset: number
+  score: number
   ballState: {
     x: number
     v: number
   }
+  obstacles: Array<{
+    x: number
+    y: number
+    r: number
+  }>
 }
 
 type GameplayState = MenuState | PlayingState
@@ -46,6 +52,10 @@ const OSCILLATOR_G1 = 0.3
 const OSCILLATOR_G2 = - 0.2
 
 const SCROLL_V = 10
+const SCORE_RATE = 10
+const BALL_Y = 75
+const OBSTACLE_PERIOD = 10
+const OBSTACLE_X_RANGE = 100
 
 const GAME_RECT: Rect = {
   width: 160,
@@ -96,11 +106,28 @@ export const getInitState = (canvasId: string): GameState => {
 const getInitPlayingState = (): PlayingState => ({
   tag: 'playing',
   yOffset: 0,
+  score: 0,
   ballState: {
     x: 30,
     v: 0,
-  }
+  },
+  obstacles: [],
 })
+
+function hasFatalCollision(state: GameState & {gameplayState: PlayingState}): boolean {
+  // Detect collision with wall
+  if ((state.gameplayState.ballState.x - BALL_RADIUS < LEFT_WALL_POSRECT.x + LEFT_WALL_POSRECT.width) ||
+    (state.gameplayState.ballState.x + BALL_RADIUS > RIGHT_WALL_POSRECT.x)) {
+    return true
+  }
+  // Detect collision with obstacles
+  for (const ob of state.gameplayState.obstacles) {
+    if (Math.hypot((state.gameplayState.ballState.x - ob.x), (BALL_Y - (state.gameplayState.yOffset + ob.y))) < BALL_RADIUS + ob.r) {
+      return true
+    }
+  }
+  return false
+}
 
 export function updateState(state: GameState, timestamp: number): void {
   const gameTimeDelta = Math.min(MAX_TIME_DELTA, timestamp - state.timestamp)
@@ -108,16 +135,32 @@ export function updateState(state: GameState, timestamp: number): void {
   state.gameTime += gameTimeDelta
   if (state.gameplayState.tag === 'playing') {
     state.gameplayState.yOffset = SCROLL_V * state.gameTime
+    state.gameplayState.score = Math.round(SCORE_RATE * state.gameTime)
     state.gameplayState.ballState = {
       x: state.gameplayState.ballState.x + OSCILLATOR_S * state.gameplayState.ballState.v * gameTimeDelta,
       v: state.gameplayState.ballState.v - OSCILLATOR_T * (state.gameplayState.ballState.x - GAME_CENTER.width) * gameTimeDelta - (state.mouseDown ? OSCILLATOR_G2 : OSCILLATOR_G1) * state.gameplayState.ballState.v * gameTimeDelta,
     }
-    // Detect game over
-    if ((state.gameplayState.ballState.x - BALL_RADIUS < LEFT_WALL_POSRECT.x + LEFT_WALL_POSRECT.width) ||
-      (state.gameplayState.ballState.x + BALL_RADIUS > RIGHT_WALL_POSRECT.x)) {
+    
+    // Remove old obstacles
+    state.gameplayState.obstacles = state.gameplayState.obstacles.filter(ob => {
+      return (state.gameplayState as PlayingState).yOffset + ob.y - ob.r <= GAME_RECT.height
+    })
+
+    // Add new obstacles
+    if (Math.random() * OBSTACLE_PERIOD < gameTimeDelta) {
+      state.gameplayState.obstacles.push({
+        x: 90 + OBSTACLE_X_RANGE * (Math.random() - 0.5),
+        y: - state.gameplayState.yOffset - 50,
+        r: 1 + 2 * Math.random(),
+      })
+    }
+
+    if (hasFatalCollision(state as (GameState & {gameplayState: PlayingState}))) {
       state.gameplayState = {
-        tag: 'menu'
+        tag: 'menu',
+        score: state.gameplayState.score
       }
+      return
     }
   }
 }
@@ -134,7 +177,7 @@ const getScaleFactor = (pixelRect: Rect, gameCoordinateRect: Rect, gameSafeCoord
 const getBallCoordinates = (state: GameState & {gameplayState: PlayingState}) => {
   return {
     x: state.gameplayState.ballState.x,
-    y: 75,
+    y: BALL_Y,
   }
 }
 
@@ -144,12 +187,18 @@ export function drawMenuState(state: GameState & {gameplayState: MenuState}) {
   const ctx = canvas.getContext('2d')!
   ctx.resetTransform()
   ctx.rect(0, 0, canvasWidth, canvasHeight)
-  ctx.fillStyle = '#9999ff'
+  ctx.fillStyle = '#5555ff'
   ctx.fill()
   ctx.textAlign = "center"
   ctx.font = "30px Arial"
   ctx.fillStyle = "#ffffff"
   ctx.fillText("OSCILLATOR", canvasWidth/2, canvasHeight/2)
+  if (state.gameplayState.score) {
+    ctx.textAlign = "center"
+    ctx.font = "20px Arial"
+    ctx.fillStyle = "#ffff66"
+    ctx.fillText(formatScore(state.gameplayState.score), canvasWidth/2, canvasHeight/2 + 40)
+  }
 }
 
 // For debugging
@@ -176,6 +225,12 @@ export function drawGameRect(state: GameState) {
   ctx.fillStyle = '#ff0000'
   ctx.rect((GAME_RECT.width - GAME_SAFE_RECT.width) / 2, (GAME_RECT.height - GAME_SAFE_RECT.height) / 2, GAME_SAFE_RECT.width, GAME_SAFE_RECT.height)
   ctx.fill()
+}
+
+const formatScore = (score: number): string => {
+  const scoreString = score <= 99999 ? score.toFixed(0).toString() : '99999'
+  const scoreZeroPadding = new Array(5 - scoreString.length + 1).join('0')
+  return scoreZeroPadding + scoreString
 }
 
 export function drawPlayingState(state: GameState & {gameplayState: PlayingState}) {
@@ -235,6 +290,22 @@ export function drawPlayingState(state: GameState & {gameplayState: PlayingState
   ctx.fillStyle = '#ff9999'
   ctx.ellipse(bc.x, bc.y, BALL_RADIUS, BALL_RADIUS, 0, 0, 2*Math.PI)
   ctx.fill()
+
+  // Obstacles
+  for(const ob of state.gameplayState.obstacles) {
+    ctx.beginPath()
+    ctx.fillStyle = '#ffffff'
+    ctx.ellipse(ob.x, ob.y + state.gameplayState.yOffset, ob.r, ob.r, 0, 0, 2*Math.PI)
+    ctx.fill()
+  }
+
+  // Score text
+  ctx.beginPath()
+  ctx.textAlign = "left"
+  ctx.fillStyle = '#ffff66'
+  ctx.font = "10px Arial"
+  const scoreString = formatScore(state.gameplayState.score)
+  ctx.fillText(scoreString, 25, 15)
 }
 
 const drawState = (state: GameState) => {
