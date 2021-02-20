@@ -43,8 +43,13 @@ interface GameState {
   mouseDown: boolean
 }
 
-const MAX_TIME_DELTA = 0.1 // seconds
+// If the clock time delta exceeds this value, we cap the game time delta
+const MAX_CLOCK_TIME_DELTA_MS = 2.5 / 60 * 1000
+// How fast is game time relative to clock time
+const GAME_TIME_RATE = 6 / 1000
+
 const BALL_RADIUS = 1.5
+const BALL_Y = 75
 
 const OSCILLATOR_S = 1
 const OSCILLATOR_T = 1
@@ -53,7 +58,6 @@ const OSCILLATOR_G2 = - 0.2
 
 const SCROLL_V = 10
 const SCORE_RATE = 10
-const BALL_Y = 75
 const OBSTACLE_PERIOD = 10
 const OBSTACLE_X_RANGE = 100
 
@@ -130,7 +134,13 @@ function hasFatalCollision(state: GameState & {gameplayState: PlayingState}): bo
 }
 
 export function updateState(state: GameState, timestamp: number): void {
-  const gameTimeDelta = Math.min(MAX_TIME_DELTA, timestamp - state.timestamp)
+  let clockTimeDelta = timestamp - state.timestamp
+  if (clockTimeDelta > MAX_CLOCK_TIME_DELTA_MS) {
+    console.debug('Timing fault: ', clockTimeDelta)
+    clockTimeDelta = MAX_CLOCK_TIME_DELTA_MS
+  }
+  
+  const gameTimeDelta = clockTimeDelta * GAME_TIME_RATE
   state.timestamp = timestamp
   state.gameTime += gameTimeDelta
   if (state.gameplayState.tag === 'playing') {
