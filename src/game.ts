@@ -1,3 +1,4 @@
+import { ImageResources, loadImageResources } from "./images"
 
 interface Rect {
   width: number
@@ -27,7 +28,8 @@ interface PlayingState {
   obstacles: Array<{
     x: number
     y: number
-    r: number
+    w: number
+    h: number
   }>
 }
 
@@ -41,6 +43,7 @@ interface GameState {
   timestamp: number
   gameTime: number
   mouseDown: boolean
+  resources: ImageResources
 }
 
 // If the clock time delta exceeds this value, we cap the game time delta
@@ -48,8 +51,11 @@ const MAX_CLOCK_TIME_DELTA_MS = 2.5 / 60 * 1000
 // How fast is game time relative to clock time
 const GAME_TIME_RATE = 6 / 1000
 
-const BALL_RADIUS = 1.5
-const BALL_Y = 75
+const RRH_WIDTH = 10
+const RRH_COLLISION_WIDTH = 10
+const RRH_HEIGHT = 13
+const RRH_COLLISION_HEIGHT = 13
+const RRH_Y = 75
 
 const OSCILLATOR_S = 1
 const OSCILLATOR_T = 1
@@ -90,7 +96,7 @@ const RIGHT_WALL_POSRECT: PosRect = {
   height: 90,
 }
 
-export const getInitState = (canvasId: string): GameState => {
+export const getInitState = (resources: ImageResources, canvasId: string): GameState => {
   const canvas = document.getElementById(canvasId) as HTMLCanvasElement
   canvas.width = canvas.scrollWidth
   canvas.height = canvas.scrollHeight
@@ -104,6 +110,7 @@ export const getInitState = (canvasId: string): GameState => {
     timestamp: 0,
     gameTime: 0,
     mouseDown: false,
+    resources,
   }
 }
 
@@ -120,13 +127,16 @@ const getInitPlayingState = (): PlayingState => ({
 
 function hasFatalCollision(state: GameState & {gameplayState: PlayingState}): boolean {
   // Detect collision with wall
-  if ((state.gameplayState.ballState.x - BALL_RADIUS < LEFT_WALL_POSRECT.x + LEFT_WALL_POSRECT.width) ||
-    (state.gameplayState.ballState.x + BALL_RADIUS > RIGHT_WALL_POSRECT.x)) {
+  if ((state.gameplayState.ballState.x - RRH_COLLISION_WIDTH / 2 < LEFT_WALL_POSRECT.x + LEFT_WALL_POSRECT.width) ||
+    (state.gameplayState.ballState.x + RRH_COLLISION_WIDTH / 2 > RIGHT_WALL_POSRECT.x)) {
     return true
   }
   // Detect collision with obstacles
   for (const ob of state.gameplayState.obstacles) {
-    if (Math.hypot((state.gameplayState.ballState.x - ob.x), (BALL_Y - (state.gameplayState.yOffset + ob.y))) < BALL_RADIUS + ob.r) {
+    if (
+      (Math.abs(state.gameplayState.ballState.x - ob.x) < (RRH_COLLISION_WIDTH / 2 + ob.w / 2)) &&
+      (Math.abs(RRH_Y - (state.gameplayState.yOffset + ob.y)) < (RRH_COLLISION_HEIGHT / 2 + ob.w / 2))
+    ) {
       return true
     }
   }
@@ -148,12 +158,14 @@ export function updateState(state: GameState, timestamp: number): void {
     state.gameplayState.score = Math.round(SCORE_RATE * state.gameTime)
     state.gameplayState.ballState = {
       x: state.gameplayState.ballState.x + OSCILLATOR_S * state.gameplayState.ballState.v * gameTimeDelta,
-      v: state.gameplayState.ballState.v - OSCILLATOR_T * (state.gameplayState.ballState.x - GAME_CENTER.width) * gameTimeDelta - (state.mouseDown ? OSCILLATOR_G2 : OSCILLATOR_G1) * state.gameplayState.ballState.v * gameTimeDelta,
+      v: state.gameplayState.ballState.v
+        - OSCILLATOR_T * (state.gameplayState.ballState.x - GAME_CENTER.width) * gameTimeDelta
+        - (state.mouseDown ? OSCILLATOR_G2 : OSCILLATOR_G1) * state.gameplayState.ballState.v * gameTimeDelta,
     }
     
     // Remove old obstacles
     state.gameplayState.obstacles = state.gameplayState.obstacles.filter(ob => {
-      return (state.gameplayState as PlayingState).yOffset + ob.y - ob.r <= GAME_RECT.height
+      return (state.gameplayState as PlayingState).yOffset + ob.y - ob.h / 2 <= GAME_RECT.height
     })
 
     // Add new obstacles
@@ -161,7 +173,8 @@ export function updateState(state: GameState, timestamp: number): void {
       state.gameplayState.obstacles.push({
         x: 90 + OBSTACLE_X_RANGE * (Math.random() - 0.5),
         y: - state.gameplayState.yOffset - 50,
-        r: 1 + 2 * Math.random(),
+        w: 5,
+        h: 5,
       })
     }
 
@@ -184,10 +197,10 @@ const getScaleFactor = (pixelRect: Rect, gameCoordinateRect: Rect, gameSafeCoord
   return Math.min(hss, wss, gws)
 }
 
-const getBallCoordinates = (state: GameState & {gameplayState: PlayingState}) => {
+const getRrhCoordinates = (state: GameState & {gameplayState: PlayingState}) => {
   return {
     x: state.gameplayState.ballState.x,
-    y: BALL_Y,
+    y: RRH_Y,
   }
 }
 
@@ -197,12 +210,12 @@ export function drawMenuState(state: GameState & {gameplayState: MenuState}) {
   const ctx = canvas.getContext('2d')!
   ctx.resetTransform()
   ctx.rect(0, 0, canvasWidth, canvasHeight)
-  ctx.fillStyle = '#5555ff'
+  ctx.fillStyle = '#228b22'
   ctx.fill()
   ctx.textAlign = "center"
-  ctx.font = "30px Arial"
-  ctx.fillStyle = "#ffffff"
-  ctx.fillText("OSCILLATOR", canvasWidth/2, canvasHeight/2)
+  ctx.font = "48px Arial"
+  ctx.fillStyle = "#290b06"
+  ctx.fillText("RED RIDING HOOD", canvasWidth/2, canvasHeight/2)
   if (state.gameplayState.score) {
     ctx.textAlign = "center"
     ctx.font = "20px Arial"
@@ -268,7 +281,7 @@ export function drawPlayingState(state: GameState & {gameplayState: PlayingState
   // Game background
   ctx.beginPath()
   ctx.rect(0, 0, GAME_RECT.width, GAME_RECT.height)
-  ctx.fillStyle='#5555ff'
+  ctx.fillStyle='#228b22'
   ctx.fill()
   ctx.clip()
 
@@ -278,7 +291,7 @@ export function drawPlayingState(state: GameState & {gameplayState: PlayingState
     ctx.moveTo(0, y)
     ctx.lineWidth = 0.4
     // ctx.setLineDash([2, 6]);
-    ctx.strokeStyle = '#3333ff'
+    ctx.strokeStyle = '#013220'
     ctx.lineTo(GAME_RECT.width, y)
     ctx.stroke()
   }
@@ -286,27 +299,35 @@ export function drawPlayingState(state: GameState & {gameplayState: PlayingState
   // Walls
   ctx.beginPath()
   ctx.rect(LEFT_WALL_POSRECT.x, LEFT_WALL_POSRECT.y, LEFT_WALL_POSRECT.width, LEFT_WALL_POSRECT.height)
-  ctx.fillStyle='#ffffff'
+  ctx.fillStyle='#a5682a'
   ctx.fill()
   
   ctx.beginPath()
   ctx.rect(RIGHT_WALL_POSRECT.x, RIGHT_WALL_POSRECT.y, RIGHT_WALL_POSRECT.width, RIGHT_WALL_POSRECT.height)
-  ctx.fillStyle='#ffffff'
+  ctx.fillStyle='#a5682a'
   ctx.fill()
 
-  // Ball
-  const bc = getBallCoordinates(state)
-  ctx.beginPath()
-  ctx.fillStyle = '#ff9999'
-  ctx.ellipse(bc.x, bc.y, BALL_RADIUS, BALL_RADIUS, 0, 0, 2*Math.PI)
-  ctx.fill()
+  // Rrh
+  
+  const bc = getRrhCoordinates(state)
+  ctx.drawImage(state.resources.rrh, bc.x - RRH_WIDTH / 2, bc.y - RRH_HEIGHT / 2, RRH_WIDTH, RRH_HEIGHT)
+  
+  // Rrh outline
+
+  // ctx.beginPath()
+  // ctx.strokeStyle = '#ffff00'
+  // ctx.lineWidth = 0.2
+  // ctx.rect(bc.x - RRH_WIDTH / 2, bc.y - RRH_HEIGHT / 2, RRH_WIDTH, RRH_HEIGHT)
+  // ctx.stroke()
 
   // Obstacles
   for(const ob of state.gameplayState.obstacles) {
-    ctx.beginPath()
-    ctx.fillStyle = '#ffffff'
-    ctx.ellipse(ob.x, ob.y + state.gameplayState.yOffset, ob.r, ob.r, 0, 0, 2*Math.PI)
-    ctx.fill()
+    ctx.drawImage(state.resources.shroom, ob.x - ob.w / 2, ob.y + state.gameplayState.yOffset - ob.h / 2, ob.w, ob.h)
+    // Circles
+    // ctx.beginPath()
+    // ctx.fillStyle = '#ffffff'
+    // ctx.ellipse(ob.x, ob.y + state.gameplayState.yOffset, ob.r, ob.r, 0, 0, 2*Math.PI)
+    // ctx.fill()
   }
 
   // Score text
@@ -353,8 +374,9 @@ const setupListeners = (state: GameState) => {
   window.addEventListener('resize', () => onResize(state))
 }
 
-export const setupGame = (canvasId: string) => {
-  const state: GameState = getInitState(canvasId)
+export const setupGame = async (canvasId: string) => {
+  const resources = await loadImageResources()
+  const state: GameState = getInitState(resources, canvasId)
   setupListeners(state)
   function refresh(timestamp: number){
     updateState(state, timestamp)
