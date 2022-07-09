@@ -42,7 +42,7 @@ interface GameState {
   gameplayState: GameplayState
   timestamp: number
   gameTime: number
-  mouseDown: boolean
+  gasPedalDown: boolean
   resources: ImageResources
 }
 
@@ -109,7 +109,7 @@ export const getInitState = (resources: ImageResources, canvasId: string): GameS
     },
     timestamp: 0,
     gameTime: 0,
-    mouseDown: false,
+    gasPedalDown: false,
     resources,
   }
 }
@@ -160,7 +160,7 @@ export function updateState(state: GameState, timestamp: number): void {
       x: state.gameplayState.ballState.x + OSCILLATOR_S * state.gameplayState.ballState.v * gameTimeDelta,
       v: state.gameplayState.ballState.v
         - OSCILLATOR_T * (state.gameplayState.ballState.x - GAME_CENTER.width) * gameTimeDelta
-        - (state.mouseDown ? OSCILLATOR_G2 : OSCILLATOR_G1) * state.gameplayState.ballState.v * gameTimeDelta,
+        - (state.gasPedalDown ? OSCILLATOR_G2 : OSCILLATOR_G1) * state.gameplayState.ballState.v * gameTimeDelta,
     }
     
     // Remove old obstacles
@@ -347,16 +347,16 @@ const drawState = (state: GameState) => {
   }
 }
 
-const onMouseDown = (state: GameState) => {
+const onGasPedalDown = (state: GameState) => {
   if (state.gameplayState.tag === 'menu') {
     state.gameTime = 0
     state.gameplayState = getInitPlayingState()
   }
-  state.mouseDown = true
+  state.gasPedalDown = true
 }
 
-const onMouseUp = (state: GameState) => {
-  state.mouseDown = false
+const onGasPedalUp = (state: GameState) => {
+  state.gasPedalDown = false
 }
 
 const onResize = (state: GameState) => {
@@ -369,8 +369,8 @@ const onResize = (state: GameState) => {
 
 const setupListeners = (state: GameState) => {
   const canvas = document.getElementById(state.canvasId) as HTMLCanvasElement
-  canvas.addEventListener('mousedown', () => onMouseDown(state))
-  canvas.addEventListener('mouseup', () => onMouseUp(state))
+  canvas.addEventListener('mousedown', () => onGasPedalDown(state))
+  canvas.addEventListener('mouseup', () => onGasPedalUp(state))
   window.addEventListener('resize', () => onResize(state))
 }
 
